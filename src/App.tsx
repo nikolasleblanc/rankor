@@ -223,6 +223,8 @@ class App extends React.Component<any, { players: any[], playerStats: any[], isL
         </div>
         {players && (
           <PlayerList
+            lockAxis={'y'}
+            pressDelay={200}
             players={R.slice(0, 100, players)}
             playerStats={playerStatsById}
             onSortEnd={this.onSortEnd}
