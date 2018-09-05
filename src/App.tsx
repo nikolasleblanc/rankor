@@ -225,8 +225,7 @@ class App extends React.Component<any, { players: any[], playerStats: any[], isL
           <PlayerList
             useDragHandle={true}
             lockAxis={'y'}
-            pressDelay={200}
-            players={R.slice(0, 100, players)}
+            players={R.slice(0, 25, players)}
             playerStats={playerStatsById}
             onSortEnd={this.onSortEnd}
           />
