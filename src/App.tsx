@@ -117,18 +117,11 @@ class App extends React.Component<any, { players: any[], playerStats: any[], isL
 
   constructor(props: any) {
     super(props);
-    this.state = {
-      isLoading: true,
-      playerStats: [],
-      players: [],
-      position: 'RB',
-      rank: [],
-    };
-    this.onSortEnd = this.onSortEnd.bind(this);
-    this.changePosition = this.changePosition.bind(this);
-    this.loadPlayersIntoState = this.loadPlayersIntoState.bind(this);
     if (R.isNil(store.get('rank'))) {
       store.set('rank', {});
+    }
+    if (R.isNil(store.get('position'))) {
+      store.set('position', 'RB');
     }
     if (R.isNil(store.get('players'))) {
       store.set('players', {});
@@ -145,6 +138,16 @@ class App extends React.Component<any, { players: any[], playerStats: any[], isL
     if (R.isNil(store.get('lastUpdated'))) {
       store.set('lastUpdated', {});
     }
+    this.state = {
+      isLoading: true,
+      playerStats: [],
+      players: [],
+      position: store.get('position'),
+      rank: [],
+    };
+    this.onSortEnd = this.onSortEnd.bind(this);
+    this.changePosition = this.changePosition.bind(this);
+    this.loadPlayersIntoState = this.loadPlayersIntoState.bind(this);
   }
 
   public componentDidMount() {
@@ -153,6 +156,7 @@ class App extends React.Component<any, { players: any[], playerStats: any[], isL
 
   public changePosition(position: string) {
     return () => {
+      store.set('position', position);
       this.loadPlayersIntoState(position, true);
     }
   }
