@@ -215,9 +215,7 @@ class App extends React.Component<any, { players: any[], playerStats: any[], isL
 
     const players = rank.map((id: any) => playersById[id]);
 
-    return this.state.isLoading ? (
-      <p>Loading</p>
-    ) : (
+    return (
       <>
         <div className="flex justify-between">
           <button onClick={this.changePosition('QB')}>QB</button>
@@ -225,7 +223,9 @@ class App extends React.Component<any, { players: any[], playerStats: any[], isL
           <button onClick={this.changePosition('TE')}>TE</button>
           <button onClick={this.changePosition('WR')}>WR</button>
         </div>
-        {players && (
+        {this.state.isLoading ? (
+          <p>Loading</p>
+        ) : (
           <PlayerList
             useDragHandle={true}
             lockAxis={'y'}
