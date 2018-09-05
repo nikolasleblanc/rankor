@@ -223,6 +223,7 @@ class App extends React.Component<any, { players: any[], playerStats: any[], isL
         </div>
         {players && (
           <PlayerList
+            useDragHandle={true}
             lockAxis={'y'}
             pressDelay={200}
             players={R.slice(0, 100, players)}
