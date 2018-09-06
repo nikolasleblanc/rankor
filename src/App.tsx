@@ -201,10 +201,12 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
           });
           this.rankRef = firebase.database().ref('ranks/' + this.state.position + '/' + store.get('user').uid);
           this.rankRef.once('value').then((snapshot: any) => {
-            this.setState({
-              ...this.state,
-              rank: snapshot.val(),
-            });
+            if (R.not(R.isNil(snapshot.val()))) {
+              this.setState({
+                ...this.state,
+                rank: snapshot.val()
+              });
+            }
           });
         })
         .catch((error) => {
@@ -222,17 +224,19 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
     if (store.get('user') !== undefined) {
       this.rankRef = firebase.database().ref('ranks/' + this.state.position + '/' + store.get('user').uid);
       this.rankRef.once('value').then((snapshot: any) => {
-        this.setState({
-          ...this.state,
-          rank: snapshot.val(),
-        });
+        if (R.not(R.isNil(snapshot.val()))) {
+          this.setState({
+            ...this.state,
+            rank: snapshot.val(),
+          });
+        }
       });
       this.rankRef.on('value', (snapshot: any) => {
         // tslint:disable-next-line
         console.log(snapshot.val())
         this.setState({
           ...this.state,
-          rank: snapshot.val(),
+          rank: snapshot.val() || [],
         });
       });
     }
@@ -296,7 +300,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
         firebase.database().ref('ranks/' + position + '/' + store.get('user').uid).on('value', (snapshot: any) => {
           this.setState({
             ...this.state,
-            rank: snapshot.val(),
+            rank: snapshot.val() || response[0].map((i: any) => i.id),
           });
         })
       }
@@ -332,7 +336,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
   }
 
   public render() {
-    const rank: any[] = this.state.rank;
+    const rank: any[] = (this.state.rank.length && this.state.rank) || this.state.players.map(i => i.id);
     const playersById = R.propOr({}, this.state.position, store.get('playersById'));
     const playerStatsById = R.propOr({}, this.state.position, store.get('playerStatsById'));
 
