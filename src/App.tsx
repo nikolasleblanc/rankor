@@ -1,4 +1,5 @@
 import { default as axios } from 'axios';
+import * as firebase from 'firebase';
 // import { differenceInMinutes } from 'date-fns';
 import * as R from 'ramda';
 import * as React from 'react';
@@ -14,6 +15,19 @@ const SEASON = '2017-regular';
 const API_URL = 'https://api.mysportsfeeds.com/v2.0/pull/nfl';
 const API_PLAYER_URL = `${API_URL}/players.json`;
 const API_PLAYER_STATS_URL = `${API_URL}/${SEASON}/player_stats_totals.json`;
+
+export const config = {
+  apiKey: process.env.REACT_APP_API_KEY,
+  authDomain: process.env.REACT_APP_AUTH_DOMAIN,
+  databaseURL: process.env.REACT_APP_DATABASE_URL,
+  messagingSenderId: process.env.REACT_APP_MESSAGING_SENDER_ID,
+  projectId: process.env.REACT_APP_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_STORAGE_BUCKET,
+};
+
+if (!firebase.apps.length) {
+  firebase.initializeApp(config);
+}
 
 const mapPlayerData = R.compose(
   // R.slice(0, 100),
@@ -112,8 +126,17 @@ const getPlayerStatsData = (TOKEN: string, PASSWORD: string, position: string) =
     .then(setPlayerStatsArray(position))
     .then(setLastUpdated(position));
 
-class App extends React.Component<any, { players: any[], playerStats: any[], isLoading: boolean, position: string, rank: any[] }> {
+const provider = new firebase.auth.GoogleAuthProvider();
+
+class App extends React.Component<any, { loggedIn: boolean, players: any[], playerStats: any[], isLoading: boolean, position: string, rank: any[] }> {
   public SortableList: any;
+
+  public token: string;
+  public user: any;
+  public errorCode: any;
+  public errorMessage: any;
+  public email: any;
+  public credential: any;
 
   constructor(props: any) {
     super(props);
@@ -138,8 +161,15 @@ class App extends React.Component<any, { players: any[], playerStats: any[], isL
     if (R.isNil(store.get('lastUpdated'))) {
       store.set('lastUpdated', {});
     }
+    if (R.isNil(store.get('user'))) {
+      store.set('user', undefined);
+    }
+    if (R.isNil(store.get('token'))) {
+      store.set('token', undefined);
+    }
     this.state = {
       isLoading: true,
+      loggedIn: false,
       playerStats: [],
       players: [],
       position: store.get('position'),
@@ -148,10 +178,55 @@ class App extends React.Component<any, { players: any[], playerStats: any[], isL
     this.onSortEnd = this.onSortEnd.bind(this);
     this.changePosition = this.changePosition.bind(this);
     this.loadPlayersIntoState = this.loadPlayersIntoState.bind(this);
+    this.doLogin = this.doLogin.bind(this);
+    this.doLogout = this.doLogout.bind(this);
   }
 
   public componentDidMount() {
     this.loadPlayersIntoState(this.state.position, true);
+    // tslint:disable-next-line
+    console.log(store, R);
+    if (R.or(
+      R.isNil(store.get('token')),
+      R.isNil(store.get('user')),
+    )) {
+      firebase.auth().getRedirectResult()
+        .then((result: any) => {
+          store.set('token', result.credential.accessToken);
+          store.set('user', result.user);
+          this.setState({
+            ...this.state,
+            loggedIn: true,
+          })
+        })
+        .catch((error) => {
+          this.errorCode = error.code;
+          this.errorMessage = error.message;
+          this.email = error.email;
+          this.credential = error.credential;
+        });
+    } else {
+      this.setState({
+        ...this.state,
+        loggedIn: true,
+      });
+    }
+  }
+
+  public doLogin() {
+    firebase.auth().signInWithRedirect(provider);
+  }
+
+  public doLogout() {
+    // tslint:disable-next-line
+    console.log('here');
+    store.set('user', undefined);
+    store.set('token', undefined);
+    this.setState({
+      ...this.state,
+      loggedIn: false,
+    });
+    firebase.auth().signOut();
   }
 
   public changePosition(position: string) {
@@ -205,8 +280,17 @@ class App extends React.Component<any, { players: any[], playerStats: any[], isL
         // players: newPlayers,
         rank: newRank,
       });
+      if (this.state.loggedIn) {
+        firebase.database().ref('ranks/' + this.state.position).set({
+          [store.get('user').uid]: newRank,
+        });
+      }
     }
   };
+
+  public isLoggedIn() {
+    return R.not(R.or(R.isNil(store.get('token')), R.isNil(store.get('user'))));
+  }
 
   public render() {
     const rank: any[] = R.propOr([], this.state.position, store.get('rank'));
@@ -226,13 +310,20 @@ class App extends React.Component<any, { players: any[], playerStats: any[], isL
         {this.state.isLoading ? (
           <p>Loading</p>
         ) : (
-          <PlayerList
-            useDragHandle={true}
-            lockAxis={'y'}
-            players={R.slice(0, 25, players)}
-            playerStats={playerStatsById}
-            onSortEnd={this.onSortEnd}
-          />
+          <>
+            {!this.state.loggedIn ? (
+              <button onClick={this.doLogin}>Login</button>
+            ) : (
+              <button onClick={this.doLogout}>Logout</button>
+            )}
+            <PlayerList
+              useDragHandle={true}
+              lockAxis={'y'}
+              players={R.slice(0, 25, players)}
+              playerStats={playerStatsById}
+              onSortEnd={this.onSortEnd}
+            />
+          </>
         )}
       </>
     );
