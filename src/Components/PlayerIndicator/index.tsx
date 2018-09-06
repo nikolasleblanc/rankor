@@ -13,7 +13,7 @@ export const PlayerIndicator: any = SortableElement((props: any) => {
       <div className="flex-none ma2">{props.rank}</div>
       <div className="flex flex-auto items-center">
         {props.value.officialImageSrc !== null && (
-          <img className="mh2" width="50" height="50" src={props.value.officialImageSrc}/>
+          <img className="mh2" width="50" height="50" src={props.value.officialImageSrc.replace('http:', 'https:')}/>
         )}
         {props.value.firstName} {props.value.lastName} {' '}
         ({props.value.currentTeam ?

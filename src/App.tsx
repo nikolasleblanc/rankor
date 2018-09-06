@@ -281,9 +281,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
         rank: newRank,
       });
       if (this.state.loggedIn) {
-        firebase.database().ref('ranks/' + this.state.position).set({
-          [store.get('user').uid]: newRank,
-        });
+        firebase.database().ref('ranks/' + this.state.position + '/' + store.get('user').uid).set(newRank);
       }
     }
   };
