@@ -137,6 +137,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
   public errorMessage: any;
   public email: any;
   public credential: any;
+  public rankRef: any;
 
   constructor(props: any) {
     super(props);
@@ -211,6 +212,14 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
         loggedIn: true,
       });
     }
+
+    this.rankRef = firebase.database().ref('ranks/' + this.state.position + '/' + store.get('user').uid);
+    this.rankRef.on('value', (snapshot: any) => {
+      this.setState({
+        ...this.state,
+        rank: snapshot.val(),
+      });
+    });
   }
 
   public doLogin() {
@@ -233,6 +242,14 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
     return () => {
       store.set('position', position);
       this.loadPlayersIntoState(position, true);
+      this.rankRef = firebase.database().ref('ranks/' + this.state.position + '/' + store.get('user').uid);
+      this.rankRef.on('value', (snapshot: any) => {
+        // tslint:disable-next-line
+        this.setState({
+          ...this.state,
+          rank: snapshot.val(),
+        });
+      });
     }
   }
 
