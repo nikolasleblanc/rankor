@@ -198,7 +198,14 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
           this.setState({
             ...this.state,
             loggedIn: true,
-          })
+          });
+          this.rankRef = firebase.database().ref('ranks/' + this.state.position + '/' + store.get('user').uid);
+          this.rankRef.once('value').then((snapshot: any) => {
+            this.setState({
+              ...this.state,
+              rank: snapshot.val(),
+            });
+          });
         })
         .catch((error) => {
           this.errorCode = error.code;
@@ -268,7 +275,9 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
         Promise.all([
           getPlayerData(API_TOKEN, API_PASSWORD, position)(),
           getPlayerStatsData(API_TOKEN, API_PASSWORD, position)(),
-          firebase.database().ref('ranks/' + position + '/' + store.get('user').uid).once('value'),
+          store.get('user') !== undefined ?
+            firebase.database().ref('ranks/' + position + '/' + store.get('user').uid).once('value') :
+            Promise.resolve(undefined)
         ])
       ,
       () => Promise.resolve([store.get('players'), store.get('playerStats')])
@@ -281,7 +290,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
         playerStats: response[1],
         players: response[0],
         position,
-        rank: response[2].val() || response[0].map((i: any) => i.id),
+        rank: (response[2] && response[2].val()) || response[0].map((i: any) => i.id),
       });
       // tslint:disable-next-line
       console.log(response[0].map((i: any) => i.id));
