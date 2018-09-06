@@ -88,14 +88,14 @@ const setPlayerStatsArray = (position: string) => R.tap((players: any) => {
   });
 });
 
-const setPlayerRanks = (position: string) => R.tap((players: any) => {
-  if (R.isEmpty(R.propOr({}, position, store.get('rank')))) {
-    store.set('rank', {
-      ...store.get('rank'),
-      [position]: R.map(R.prop('id'), players),
-    });
-  }
-});
+// const setPlayerRanks = (position: string) => R.tap((players: any) => {
+//   if (R.isEmpty(R.propOr({}, position, store.get('rank')))) {
+//     store.set('rank', {
+//       ...store.get('rank'),
+//       [position]: R.map(R.prop('id'), players),
+//     });
+//   }
+// });
 
 const getPlayersResourceResponse = (TOKEN: string, PASSWORD: string, position: string) =>
   axios.get(`${API_PLAYER_URL}?position=${position}`, {
@@ -114,7 +114,7 @@ const getPlayerStatsResourceResponse = (TOKEN: string, PASSWORD: string, positio
 const getPlayerData = (TOKEN: string, PASSWORD: string, position: string) => () =>
   getPlayersResourceResponse(TOKEN, PASSWORD, position)
     .then(mapPlayerData)
-    .then(setPlayerRanks(position))
+    // .then(setPlayerRanks(position))
     .then(setPlayersIndexedById(position))
     .then(setPlayersArray(position))
     .then(setLastUpdated(position));
@@ -141,9 +141,9 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
 
   constructor(props: any) {
     super(props);
-    if (R.isNil(store.get('rank'))) {
-      store.set('rank', {});
-    }
+    // if (R.isNil(store.get('rank'))) {
+    //   store.set('rank', {});
+    // }
     if (R.isNil(store.get('position'))) {
       store.set('position', 'RB');
     }
@@ -212,14 +212,23 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
         loggedIn: true,
       });
     }
-
-    this.rankRef = firebase.database().ref('ranks/' + this.state.position + '/' + store.get('user').uid);
-    this.rankRef.on('value', (snapshot: any) => {
-      this.setState({
-        ...this.state,
-        rank: snapshot.val(),
+    if (store.get('user') !== undefined) {
+      this.rankRef = firebase.database().ref('ranks/' + this.state.position + '/' + store.get('user').uid);
+      this.rankRef.once('value').then((snapshot: any) => {
+        this.setState({
+          ...this.state,
+          rank: snapshot.val(),
+        });
       });
-    });
+      this.rankRef.on('value', (snapshot: any) => {
+        // tslint:disable-next-line
+        console.log(snapshot.val())
+        this.setState({
+          ...this.state,
+          rank: snapshot.val(),
+        });
+      });
+    }
   }
 
   public doLogin() {
@@ -242,14 +251,6 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
     return () => {
       store.set('position', position);
       this.loadPlayersIntoState(position, true);
-      this.rankRef = firebase.database().ref('ranks/' + this.state.position + '/' + store.get('user').uid);
-      this.rankRef.on('value', (snapshot: any) => {
-        // tslint:disable-next-line
-        this.setState({
-          ...this.state,
-          rank: snapshot.val(),
-        });
-      });
     }
   }
 
@@ -267,6 +268,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
         Promise.all([
           getPlayerData(API_TOKEN, API_PASSWORD, position)(),
           getPlayerStatsData(API_TOKEN, API_PASSWORD, position)(),
+          firebase.database().ref('ranks/' + position + '/' + store.get('user').uid).once('value'),
         ])
       ,
       () => Promise.resolve([store.get('players'), store.get('playerStats')])
@@ -279,6 +281,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
         playerStats: response[1],
         players: response[0],
         position,
+        rank: response[2].val() || response[0].map((i: any) => i.id),
       });
       // tslint:disable-next-line
       console.log(response[0].map((i: any) => i.id));
@@ -287,19 +290,23 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
 
   public onSortEnd({oldIndex, newIndex}: {oldIndex: number, newIndex: number}) {
     if (oldIndex !== newIndex) {
-      const newRank = arrayMove(store.get('rank')[this.state.position], oldIndex, newIndex);
-      store.set('rank', {
-        ...store.get('rank'),
-        [this.state.position]: newRank,
-      });
-      this.setState({
-        ...this.state,
-        // players: newPlayers,
-        rank: newRank,
-      });
+      const newRank = arrayMove(this.state.rank, oldIndex, newIndex);
+      // store.set('rank', {
+      //   ...store.get('rank'),
+      //   [this.state.position]: newRank,
+      // });
+      // this.setState({
+      //   ...this.state,
+      //   // players: newPlayers,
+      //   rank: newRank,
+      // });
       if (this.state.loggedIn) {
         firebase.database().ref('ranks/' + this.state.position + '/' + store.get('user').uid).set(newRank);
       }
+      this.setState({
+        ...this.state,
+        rank: newRank,
+      })
     }
   };
 
@@ -308,12 +315,14 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
   }
 
   public render() {
-    const rank: any[] = R.propOr([], this.state.position, store.get('rank'));
+    const rank: any[] = this.state.rank;
     const playersById = R.propOr({}, this.state.position, store.get('playersById'));
     const playerStatsById = R.propOr({}, this.state.position, store.get('playerStatsById'));
 
-    const players = rank.map((id: any) => playersById[id]);
+    const players = R.slice(0, 25, rank.map((id: any) => playersById[id]));
 
+    // tslint:disable-next-line
+    console.log(players);
     return (
       <>
         <div className="flex justify-between">
@@ -334,7 +343,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
             <PlayerList
               useDragHandle={true}
               lockAxis={'y'}
-              players={R.slice(0, 25, players)}
+              players={players}
               playerStats={playerStatsById}
               onSortEnd={this.onSortEnd}
             />
