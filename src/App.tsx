@@ -292,6 +292,14 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
         position,
         rank: (response[2] && response[2].val()) || response[0].map((i: any) => i.id),
       });
+      if (store.get('user') !== undefined) {
+        firebase.database().ref('ranks/' + position + '/' + store.get('user').uid).on('value', (snapshot: any) => {
+          this.setState({
+            ...this.state,
+            rank: snapshot.val(),
+          });
+        })
+      }
       // tslint:disable-next-line
       console.log(response[0].map((i: any) => i.id));
     });
