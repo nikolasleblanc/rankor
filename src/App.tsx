@@ -34,6 +34,7 @@ if (!firebase.apps.length) {
 
 const mapPlayerData = R.compose(
   // R.slice(0, 100),
+  R.filter(R.compose(R.not, R.isNil)),
   R.map(R.omit(['height'])),
   R.map(R.prop('player')),
   R.pathOr([], ['data', 'players']),
@@ -42,27 +43,30 @@ const mapPlayerData = R.compose(
 
 const FIX_ME = '';
 
-const mapPlayerStatsData = (statSet: any) => R.compose(
-  R.tap((players: any) => {
-    const getPlayerIdsSortedByFantasyPoints = R.compose(
-      R.map(R.prop('id')),
-      R.sortWith([
-        R.descend(R.prop('fantasyPoints')),
-      ]),
-    );
-    store.set('sort', getPlayerIdsSortedByFantasyPoints(players));
-  }),
-  R.map((player: any) => {
-    const position = R.pathOr(FIX_ME, ['player', 'primaryPosition'], player);
-    return {
-      fantasyPoints: calculateFantasyPoints(statSet, getStatType(position))(R.path(['stats', getStatType(position)], player)),
-      id: R.path(['player', 'id'], player),
-      playerPosition: R.path(['player', 'primaryPosition'], player),
-      ...R.prop('stats', player),
-    };
-  }),
-  R.pathOr([], ['data', 'playerStatsTotals']),
-);
+const mapPlayerStatsData = (statSet: any) =>
+  R.compose(
+    R.tap((players: any) => {
+      store.set(
+        'sort',
+        R.compose(
+          R.map(R.prop('id')),
+          R.sortWith([
+            R.descend(R.prop('fantasyPoints')),
+          ]),
+        )(players),
+      );
+    }),
+    R.map((player: any) => {
+      const position = R.pathOr(FIX_ME, ['player', 'primaryPosition'], player);
+      return {
+        fantasyPoints: calculateFantasyPoints(statSet, getStatType(position))(R.path(['stats', getStatType(position)], player)),
+        id: R.path(['player', 'id'], player),
+        playerPosition: R.path(['player', 'primaryPosition'], player),
+        ...R.prop('stats', player),
+      };
+    }),
+    R.pathOr([], ['data', 'playerStatsTotals']),
+  );
 
 const isDataStale = (position: string) => (lastUpdated: Date) => {
   return true;
@@ -70,79 +74,64 @@ const isDataStale = (position: string) => (lastUpdated: Date) => {
   // return timeElapsedSinceUpdate > MAX_ALLOWABLE_AGE_OF_DATA_IN_HOURS;
 };
 
-const setLastUpdated = (position: string) => R.tap((players: any) => {
-  store.set('lastUpdated', {
-    ...store.get('lastUpdated'),
-    [position]: new Date(),
-  });
+const setLocalStorage = (key: string, position: string, value: any) => store.set(key, R.assocPath([position], value, store.get(key)));
+
+const setLastUpdated = (position: string) =>
+  R.tap((_: any) =>
+    setLocalStorage('lastUpdated', position, new Date()),
+  );
+
+const setPlayersIndexedById = (position: string) =>
+  R.tap((players: any) =>
+    setLocalStorage('playersById', position, R.indexBy(R.prop('id'), players)),
+  );
+
+const setPlayerStatsIndexedById = (position: string) =>
+  R.tap((players: any) =>
+    setLocalStorage('playerStatsById', position, R.indexBy(R.prop('id'), players)),
+  );
+
+const setPlayersArray = (position: string) =>
+  R.tap((players: any) =>
+    setLocalStorage('players', position, players),
+  );
+
+const setPlayerStatsArray = (position: string) =>
+  R.tap((players: any) =>
+    setLocalStorage('playerStats', position, players),
+  );
+
+const processPlayerData = (position: string) =>
+  R.compose(
+    setLastUpdated(position),
+    setPlayersArray(position),
+    setPlayersIndexedById(position),
+    mapPlayerData,
+  );
+
+const processPlayerStatsData = (position: string, statSet: any) =>
+  R.compose(
+    setLastUpdated(position),
+    setPlayerStatsArray(position),
+    setPlayerStatsIndexedById(position),
+    mapPlayerStatsData(statSet),
+  );
+
+const fetch = (url: string) => axios.get(url, {
+  headers: {
+    'Authorization': `Basic ${btoa(API_TOKEN.concat(':', API_PASSWORD))}`,
+  }
 });
 
 
-const setPlayersIndexedById = (position: string) => R.tap((players: any) => {
-  store.set('playersById', {
-    ...store.get('playersById'),
-    [position]: R.indexBy(R.prop('id'), players),
-  });
-});
 
-const setPlayerStatsIndexedById = (position: string) => R.tap((players: any) => {
-  store.set('playerStatsById', {
-    ...store.get('playerStatsById'),
-    [position]: R.indexBy(R.prop('id'), players),
-  });
-});
+const getPlayerData = (position: string) => () =>
+  fetch(`${API_PLAYER_URL}?position=${position}`)
+    .then(processPlayerData(position));
 
-const setPlayersArray = (position: string) => R.tap((players: any) => {
-  store.set('players', {
-    ...store.get('players'),
-    [position]: players.filter((i: any) => !R.isNil(i)),
-  });
-});
-
-const setPlayerStatsArray = (position: string) => R.tap((players: any) => {
-  store.set('playerStats', {
-    ...store.get('playerStats'),
-    [position]: players.filter((i: any) => !R.isNil(i)),
-  });
-});
-
-// const setPlayerRanks = (position: string) => R.tap((players: any) => {
-//   if (R.isEmpty(R.propOr({}, position, store.get('rank')))) {
-//     store.set('rank', {
-//       ...store.get('rank'),
-//       [position]: R.map(R.prop('id'), players),
-//     });
-//   }
-// });
-
-const getPlayersResourceResponse = (TOKEN: string, PASSWORD: string, position: string) =>
-  axios.get(`${API_PLAYER_URL}?position=${position}`, {
-    headers: {
-      'Authorization': `Basic ${btoa(TOKEN.concat(':', PASSWORD))}`,
-    },
-  });
-
-const getPlayerStatsResourceResponse = (TOKEN: string, PASSWORD: string, position: string) =>
-  axios.get(`${API_PLAYER_STATS_URL}?position=${position}`, {
-    headers: {
-      'Authorization': `Basic ${btoa(TOKEN.concat(':', PASSWORD))}`,
-    },
-  });
-
-const getPlayerData = (TOKEN: string, PASSWORD: string, position: string) => () =>
-  getPlayersResourceResponse(TOKEN, PASSWORD, position)
-    .then(mapPlayerData)
-    // .then(setPlayerRanks(position))
-    .then(setPlayersIndexedById(position))
-    .then(setPlayersArray(position))
-    .then(setLastUpdated(position));
-
-const getPlayerStatsData = (TOKEN: string, PASSWORD: string, position: string, statSet: any) => () =>
-  getPlayerStatsResourceResponse(TOKEN, PASSWORD, position)
-    .then(mapPlayerStatsData(statSet))
-    .then(setPlayerStatsIndexedById(position))
-    .then(setPlayerStatsArray(position))
-    .then(setLastUpdated(position));
+const getPlayerStatsData = (position: string, statSet: any) => () =>
+  fetch(`${API_PLAYER_STATS_URL}?position=${position}`)
+    .then(processPlayerStatsData(position, statSet));
 
 const provider = new firebase.auth.GoogleAuthProvider();
 
@@ -213,9 +202,6 @@ const getStatSet = (playerPosition: 'RB' | 'WR' | 'TE' | 'QB', playerStatType: '
 type PlayerPositions = 'WR' | 'QB' | 'RB' | 'TE';
 
 
-  // now we have the keys we need
-
-
 const calculateFantasyPoints = (statSet: any, playerStatType: string) => (playerStats: any): number => {
   const totalPointsByStat: number[] =
     R.map(
@@ -225,7 +211,6 @@ const calculateFantasyPoints = (statSet: any, playerStatType: string) => (player
       statSet
     );
   const totalPoints: number = totalPointsByStat.reduce((acc: number, item: number) => acc + item, 0);
-  // tslint:disable-next-line
   return totalPoints;
 };
 
@@ -267,6 +252,10 @@ const setupState = (position: PlayerPositions) => (
   }
 );
 
+const movePlayerToIndex = (playerId: number, index: number, rank: any[]) => {
+  return R.insert(index, playerId, R.filter(R.compose(R.not, R.equals(playerId)), rank));
+}
+
 const getRankRef = (position: string, uid: string) => firebase.database().ref('ranks/' + position + '/' + uid);
 
 class App extends React.Component<any, { loggedIn: boolean, players: any[], playerStats: any[], isLoading: boolean, position: PlayerPositions, rank: any[] }> {
@@ -292,7 +281,6 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
     this.doLogin = this.doLogin.bind(this);
     this.doLogout = this.doLogout.bind(this);
     this.authenticateUser = this.authenticateUser.bind(this);
-    this.removePlayer = this.removePlayer.bind(this);
   }
 
   public authenticateUser() {
@@ -379,21 +367,12 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
 
   // tslint:disable-next-line
   public handleOnAddPlayer = (e: any) => {
-    this.addPlayer(e.value);
+    getRankRef(this.state.position, store.get('user').uid)
+      .set(movePlayerToIndex(e.value, 24, this.state.rank));
   }
 
   public handleOnRemovePlayer = (playerId: any) => () => {
-    this.removePlayer(playerId)();
-  }
-
-  public addPlayer = (playerId: number) => {
-    const newRank = R.insert(24, playerId, this.state.rank.filter((playerId2: number) => playerId2 !== playerId));
-    getRankRef(this.state.position, store.get('user').uid).set(newRank);
-  }
-
-  public removePlayer = (removedPlayerId: number) => () => {
-    const newRank = R.insert(25, removedPlayerId, this.state.rank.filter((playerId: number) => playerId !== removedPlayerId));
-    getRankRef(this.state.position, store.get('user').uid).set(newRank);
+    getRankRef(this.state.position, store.get('uid')).set(movePlayerToIndex(playerId, 25, this.state.rank));
   }
 
   public loadPlayersIntoState(position: PlayerPositions, override: boolean = false) {
@@ -410,8 +389,8 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
       R.or(isDataStale(position), () => override === true),
       () =>
         Promise.all([
-          getPlayerData(API_TOKEN, API_PASSWORD, position)(),
-          getPlayerStatsData(API_TOKEN, API_PASSWORD, position, statSet)(),
+          getPlayerData(position)(),
+          getPlayerStatsData(position, statSet)(),
           store.get('user') !== undefined ?
             getRankRef(position, store.get('user').uid).once('value') :
             Promise.resolve(undefined)
@@ -446,15 +425,6 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
   public onSortEnd({oldIndex, newIndex}: {oldIndex: number, newIndex: number}) {
     if (oldIndex !== newIndex) {
       const newRank = arrayMove(this.state.rank, oldIndex, newIndex);
-      // store.set('rank', {
-      //   ...store.get('rank'),
-      //   [this.state.position]: newRank,
-      // });
-      // this.setState({
-      //   ...this.state,
-      //   // players: newPlayers,
-      //   rank: newRank,
-      // });
       if (this.state.loggedIn) {
         getRankRef(this.state.position, store.get('user').uid).set(newRank);
       }
@@ -477,7 +447,6 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
 
     const players = R.slice(0, 25, rank.map((id: any) => playersById[id]));
 
-    // tslint:disable-next-line
     return (
       <>
         <div className="flex flex-column vh-100">
@@ -504,7 +473,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
                 controlShouldRenderValue={false}
                 isSearchable={true}
                 options={R.drop(25, this.state.rank).map((playerId: number) => ({
-                  label: playersById[playerId].firstName + ' ' + playersById[playerId].lastName,
+                  label: R.path([playerId, 'firstName'], playersById) + ' ' + R.path([playerId, 'lastName'], playersById),
                   value: playerId,
                 }))}
                 onChange={this.handleOnAddPlayer}
