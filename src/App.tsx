@@ -435,7 +435,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
     .then((response: any) => {
       const players = response[0];
       const playerStats = response[1];
-      const rank = (response[2] && response[2].val()) || store.get('sort');
+      const rank = (response[2] && response[2].val()) || store.get('sort') || playerStats.map((player: any) => player.id);
       this.setState({
         ...this.state,
         isLoading: false,
