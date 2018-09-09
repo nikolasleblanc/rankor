@@ -513,6 +513,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
             </div>
             <div className="ma2">
               <Select
+                placeholder={'Add Player to top 25...'}
                 controlShouldRenderValue={false}
                 isSearchable={true}
                 options={R.drop(25, this.state.rank).map((playerId: number) => ({
