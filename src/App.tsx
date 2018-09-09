@@ -7,6 +7,7 @@ import { arrayMove } from 'react-sortable-hoc';
 import * as store from 'store';
 import './App.css';
 import { PlayerList } from './Components/PlayerList';
+import { STATS } from './constants';
 
 // const MAX_ALLOWABLE_AGE_OF_DATA_IN_HOURS = 0;
 const API_TOKEN = process.env.REACT_APP_TOKEN || '';
@@ -36,13 +37,30 @@ const mapPlayerData = R.compose(
   R.pathOr([], ['data', 'players']),
 );
 
-const mapPlayerStatsData = R.compose(
-  // R.slice(0, 100),
-  // R.map(R.omit(['height'])),
-  R.map((player: any) => ({
-    id: R.path(['player', 'id'], player),
-    ...R.prop('stats', player),
-  })),
+
+const FIX_ME = '';
+
+const mapPlayerStatsData = (statSet: any) => R.compose(
+  R.tap((players: any) => {
+    const getPlayerIdsSortedByFantasyPoints = R.compose(
+      R.map(R.prop('id')),
+      R.sortWith([
+        R.descend(R.prop('fantasyPoints')),
+      ]),
+    );
+    store.set('sort', getPlayerIdsSortedByFantasyPoints(players));
+  }),
+  R.map((player: any) => {
+    const position = R.pathOr(FIX_ME, ['player', 'primaryPosition'], player);
+    // tslint:disable-next-line
+    console.log(player, statSet);
+    return {
+      fantasyPoints: calculateFantasyPoints(statSet, getStatType(position))(R.path(['stats', getStatType(position)], player)),
+      id: R.path(['player', 'id'], player),
+      playerPosition: R.path(['player', 'primaryPosition'], player),
+      ...R.prop('stats', player),
+    };
+  }),
   R.pathOr([], ['data', 'playerStatsTotals']),
 );
 
@@ -97,6 +115,14 @@ const setPlayerStatsArray = (position: string) => R.tap((players: any) => {
 //   }
 // });
 
+const PlayerSmallList = (props: { playersById: {}, rank: number[], onClick: (playerId: number) => () => void }) => (
+  <ul>
+    {R.drop(25, props.rank).map((playerId: number, index: number) => (
+      <li key={index} onClick={props.onClick(playerId)}>{props.playersById[playerId].firstName} {props.playersById[playerId].lastName}</li>
+    ))}
+  </ul>
+);
+
 const getPlayersResourceResponse = (TOKEN: string, PASSWORD: string, position: string) =>
   axios.get(`${API_PLAYER_URL}?position=${position}`, {
     headers: {
@@ -119,16 +145,148 @@ const getPlayerData = (TOKEN: string, PASSWORD: string, position: string) => () 
     .then(setPlayersArray(position))
     .then(setLastUpdated(position));
 
-const getPlayerStatsData = (TOKEN: string, PASSWORD: string, position: string) => () =>
+const getPlayerStatsData = (TOKEN: string, PASSWORD: string, position: string, statSet: any) => () =>
   getPlayerStatsResourceResponse(TOKEN, PASSWORD, position)
-    .then(mapPlayerStatsData)
+    .then(mapPlayerStatsData(statSet))
     .then(setPlayerStatsIndexedById(position))
     .then(setPlayerStatsArray(position))
     .then(setLastUpdated(position));
 
 const provider = new firebase.auth.GoogleAuthProvider();
 
-class App extends React.Component<any, { loggedIn: boolean, players: any[], playerStats: any[], isLoading: boolean, position: string, rank: any[] }> {
+interface RelevantPassingStats {
+  passInt: number;
+  passSacks: number;
+  passTD: number;
+  passYards: number;
+}
+
+interface RelevantRushingStats {
+  rushFumbles: number;
+  rushTD: number;
+  rushYards: number;
+}
+
+interface RelevantReceivingStats {
+  recFumbles: number;
+  recTD: number;
+  recYards: number;
+  receptions: number;
+}
+
+interface RelevantStats {
+  'passing': RelevantPassingStats;
+  'receiving': RelevantReceivingStats;
+  'rushing': RelevantRushingStats;
+}
+
+const POINT_VALUES: RelevantStats = {
+  'passing': {
+    'passInt': -2,
+    'passSacks': -2,
+    'passTD': 6,
+    'passYards': 0.04,
+  },
+  'receiving': {
+    'recFumbles': -2,
+    'recTD': 6,
+    'recYards': .1,
+    'receptions': 0,
+  },
+  'rushing': {
+    'rushFumbles': -2,
+    'rushTD': 6,
+    'rushYards': .1,
+  },
+};
+
+// type StatType = 'passing' | 'rushing' | 'receiving';
+
+const getStatType = (position: PlayerPositions): string => {
+  const playerStatTypeMap: {[k: string]: string} = {
+    'QB': 'passing',
+    'RB': 'rushing',
+    'TE': 'receiving',
+    'WR': 'receiving',
+  };
+  return playerStatTypeMap[position];
+}
+
+const fuckConsole = (msg: any) => {
+  // tslint:disable-next-line
+  console.log(msg)
+}
+
+
+const getStatSet = (playerPosition: 'RB' | 'WR' | 'TE' | 'QB', playerStatType: 'rushing' | 'receiving' | 'passing'): any => {
+  const relevantStats = R.intersection<any>(STATS[playerPosition], R.keys(R.prop(playerStatType, POINT_VALUES)));
+  fuckConsole(`relevantStaats ${playerStatType}, ${relevantStats}`);
+  return relevantStats;
+}
+
+type PlayerPositions = 'WR' | 'QB' | 'RB' | 'TE';
+
+
+  // now we have the keys we need
+
+
+const calculateFantasyPoints = (statSet: any, playerStatType: string) => (playerStats: any): number => {
+  // tslint:disable-next-line
+  console.log('yeah', statSet, playerStats);
+
+  const totalPointsByStat: number[] =
+    R.map(
+      (statType: string) =>
+        R.pathOr(0, [statType], playerStats) *
+        R.pathOr(0, [statType], POINT_VALUES[playerStatType]),
+      statSet
+    );
+  const totalPoints: number = totalPointsByStat.reduce((acc: number, item: number) => acc + item, 0);
+  // tslint:disable-next-line
+  return totalPoints;
+};
+
+const setupStore = () => {
+  if (R.isNil(store.get('position'))) {
+    store.set('position', 'RB');
+  }
+  if (R.isNil(store.get('players'))) {
+    store.set('players', {});
+  }
+  if (R.isNil(store.get('playersById'))) {
+    store.set('playersById', {});
+  }
+  if (R.isNil(store.get('playerStats'))) {
+    store.set('players', {});
+  }
+  if (R.isNil(store.get('playerStatsById'))) {
+    store.set('playerStatsById', {});
+  }
+  if (R.isNil(store.get('lastUpdated'))) {
+    store.set('lastUpdated', {});
+  }
+  if (R.isNil(store.get('user'))) {
+    store.set('user', undefined);
+  }
+  if (R.isNil(store.get('token'))) {
+    store.set('token', undefined);
+  }
+}
+
+const setupState = (position: PlayerPositions) => (
+  {
+    isLoading: true,
+    loggedIn: false,
+    playerStats: [],
+    players: [],
+    position,
+    rank: [],
+  }
+);
+
+const getRankRef = (position: string, uid: string) => firebase.database().ref('ranks/' + position + '/' + uid);
+
+class App extends React.Component<any, { loggedIn: boolean, players: any[], playerStats: any[], isLoading: boolean, position: PlayerPositions, rank: any[] }> {
   public SortableList: any;
 
   public token: string;
@@ -141,80 +299,54 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
 
   constructor(props: any) {
     super(props);
-    // if (R.isNil(store.get('rank'))) {
-    //   store.set('rank', {});
-    // }
-    if (R.isNil(store.get('position'))) {
-      store.set('position', 'RB');
-    }
-    if (R.isNil(store.get('players'))) {
-      store.set('players', {});
-    }
-    if (R.isNil(store.get('playersById'))) {
-      store.set('playersById', {});
-    }
-    if (R.isNil(store.get('playerStats'))) {
-      store.set('players', {});
-    }
-    if (R.isNil(store.get('playerStatsById'))) {
-      store.set('playerStatsById', {});
-    }
-    if (R.isNil(store.get('lastUpdated'))) {
-      store.set('lastUpdated', {});
-    }
-    if (R.isNil(store.get('user'))) {
-      store.set('user', undefined);
-    }
-    if (R.isNil(store.get('token'))) {
-      store.set('token', undefined);
-    }
-    this.state = {
-      isLoading: true,
-      loggedIn: false,
-      playerStats: [],
-      players: [],
-      position: store.get('position'),
-      rank: [],
-    };
+
+    setupStore();
+    this.state = setupState(store.get('position'));
+
     this.onSortEnd = this.onSortEnd.bind(this);
     this.changePosition = this.changePosition.bind(this);
     this.loadPlayersIntoState = this.loadPlayersIntoState.bind(this);
     this.doLogin = this.doLogin.bind(this);
     this.doLogout = this.doLogout.bind(this);
+    this.authenticateUser = this.authenticateUser.bind(this);
+    this.removePlayer = this.removePlayer.bind(this);
+  }
+
+  public authenticateUser() {
+    firebase.auth().getRedirectResult()
+      .then((result: any) => {
+        store.set('token', result.credential.accessToken);
+        store.set('user', result.user);
+        this.setState({
+          ...this.state,
+          loggedIn: true,
+        });
+        this.rankRef = getRankRef(this.state.position, store.get('user').uid);
+        this.rankRef.once('value').then((snapshot: any) => {
+          if (R.not(R.isNil(snapshot.val()))) {
+            this.setState({
+              ...this.state,
+              rank: snapshot.val() || store.get('sort'),
+            });
+          }
+        });
+      })
+      .catch((error) => {
+        this.errorCode = error.code;
+        this.errorMessage = error.message;
+        this.email = error.email;
+        this.credential = error.credential;
+      });
   }
 
   public componentDidMount() {
     this.loadPlayersIntoState(this.state.position, true);
     // tslint:disable-next-line
-    console.log(store, R);
     if (R.or(
       R.isNil(store.get('token')),
       R.isNil(store.get('user')),
     )) {
-      firebase.auth().getRedirectResult()
-        .then((result: any) => {
-          store.set('token', result.credential.accessToken);
-          store.set('user', result.user);
-          this.setState({
-            ...this.state,
-            loggedIn: true,
-          });
-          this.rankRef = firebase.database().ref('ranks/' + this.state.position + '/' + store.get('user').uid);
-          this.rankRef.once('value').then((snapshot: any) => {
-            if (R.not(R.isNil(snapshot.val()))) {
-              this.setState({
-                ...this.state,
-                rank: snapshot.val()
-              });
-            }
-          });
-        })
-        .catch((error) => {
-          this.errorCode = error.code;
-          this.errorMessage = error.message;
-          this.email = error.email;
-          this.credential = error.credential;
-        });
+      this.authenticateUser();
     } else {
       this.setState({
         ...this.state,
@@ -222,21 +354,20 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
       });
     }
     if (store.get('user') !== undefined) {
-      this.rankRef = firebase.database().ref('ranks/' + this.state.position + '/' + store.get('user').uid);
+      this.rankRef = getRankRef(this.state.position, store.get('user').uid);
       this.rankRef.once('value').then((snapshot: any) => {
         if (R.not(R.isNil(snapshot.val()))) {
           this.setState({
             ...this.state,
-            rank: snapshot.val(),
+            rank: snapshot.val() || store.get('sort'),
           });
         }
       });
       this.rankRef.on('value', (snapshot: any) => {
         // tslint:disable-next-line
-        console.log(snapshot.val())
         this.setState({
           ...this.state,
-          rank: snapshot.val() || [],
+          rank: snapshot.val() || store.get('sort'),
         });
       });
     }
@@ -258,14 +389,28 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
     firebase.auth().signOut();
   }
 
-  public changePosition(position: string) {
+  public changePosition(position: PlayerPositions) {
     return () => {
       store.set('position', position);
       this.loadPlayersIntoState(position, true);
     }
   }
 
-  public loadPlayersIntoState(position: string, override: boolean = false) {
+  public addPlayer = (playerId: number) => () => {
+    const newRank = R.insert(24, playerId, this.state.rank.filter((playerId2: number) => playerId2 !== playerId));
+    getRankRef(this.state.position, store.get('user').uid).set(newRank);
+  }
+
+  public removePlayer = (removedPlayerId: number) => () => {
+    const newRank = R.insert(25, removedPlayerId, this.state.rank.filter((playerId: number) => playerId !== removedPlayerId));
+    // tslint:disable-next-line
+    console.log('god damn');
+    getRankRef(this.state.position, store.get('user').uid).set(newRank);
+  }
+
+  public loadPlayersIntoState(position: PlayerPositions, override: boolean = false) {
+    const statType: any = getStatType(position);
+    const statSet = getStatSet(position, statType);
     if (API_TOKEN === '' || API_PASSWORD === '') {
       throw new Error('MISSING TOKEN OR PASSWORD');
     }
@@ -278,34 +423,35 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
       () =>
         Promise.all([
           getPlayerData(API_TOKEN, API_PASSWORD, position)(),
-          getPlayerStatsData(API_TOKEN, API_PASSWORD, position)(),
+          getPlayerStatsData(API_TOKEN, API_PASSWORD, position, statSet)(),
           store.get('user') !== undefined ?
-            firebase.database().ref('ranks/' + position + '/' + store.get('user').uid).once('value') :
+            getRankRef(position, store.get('user').uid).once('value') :
             Promise.resolve(undefined)
         ])
       ,
+      // TODO: this is no longer relevant until we start caching data again
       () => Promise.resolve([store.get('players'), store.get('playerStats')])
     )(R.prop(position, store.get('lastUpdated')))
     .then((response: any) => {
-      // tslint:disable-next-line
+      const players = response[0];
+      const playerStats = response[1];
+      const rank = response[2].val() || store.get('sort');
       this.setState({
         ...this.state,
         isLoading: false,
-        playerStats: response[1],
-        players: response[0],
+        playerStats,
+        players,
         position,
-        rank: (response[2] && response[2].val()) || response[0].map((i: any) => i.id),
+        rank,
       });
       if (store.get('user') !== undefined) {
-        firebase.database().ref('ranks/' + position + '/' + store.get('user').uid).on('value', (snapshot: any) => {
+        getRankRef(position, store.get('user').uid).on('value', (snapshot: any) => {
           this.setState({
             ...this.state,
-            rank: snapshot.val() || response[0].map((i: any) => i.id),
+            rank: snapshot.val() || rank,
           });
         })
       }
-      // tslint:disable-next-line
-      console.log(response[0].map((i: any) => i.id));
     });
   }
 
@@ -322,7 +468,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
       //   rank: newRank,
       // });
       if (this.state.loggedIn) {
-        firebase.database().ref('ranks/' + this.state.position + '/' + store.get('user').uid).set(newRank);
+        getRankRef(this.state.position, store.get('user').uid).set(newRank);
       }
       this.setState({
         ...this.state,
@@ -336,14 +482,14 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
   }
 
   public render() {
-    const rank: any[] = (this.state.rank.length && this.state.rank) || this.state.players.map(i => i.id);
+    const rank = this.state && this.state.rank;
+
     const playersById = R.propOr({}, this.state.position, store.get('playersById'));
     const playerStatsById = R.propOr({}, this.state.position, store.get('playerStatsById'));
 
     const players = R.slice(0, 25, rank.map((id: any) => playersById[id]));
 
     // tslint:disable-next-line
-    console.log(players);
     return (
       <>
         <div className="flex justify-between">
@@ -352,24 +498,38 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
           <button onClick={this.changePosition('TE')}>TE</button>
           <button onClick={this.changePosition('WR')}>WR</button>
         </div>
-        {this.state.isLoading ? (
-          <p>Loading</p>
-        ) : (
-          <>
-            {!this.state.loggedIn ? (
-              <button onClick={this.doLogin}>Login</button>
+        <div className="flex">
+          <div className="flex-auto overflow-scroll vh-100">
+            {this.state.isLoading ? (
+              <p>Loading</p>
             ) : (
-              <button onClick={this.doLogout}>Logout</button>
+              <>
+                {!this.state.loggedIn ? (
+                  <button onClick={this.doLogin}>Login</button>
+                ) : (
+                  <button onClick={this.doLogout}>Logout</button>
+                )}
+                <PlayerList
+                  useDragHandle={true}
+                  lockAxis={'y'}
+                  players={players}
+                  playerStats={playerStatsById}
+                  onSortEnd={this.onSortEnd}
+                  onRemovePlayer={(playerId: any) => () => {
+                    // tslint:disable-next-line
+                    console.log('asdasdasdas', playerId);
+                    this.removePlayer(playerId)();
+                  }}
+                />
+              </>
             )}
-            <PlayerList
-              useDragHandle={true}
-              lockAxis={'y'}
-              players={players}
-              playerStats={playerStatsById}
-              onSortEnd={this.onSortEnd}
-            />
-          </>
-        )}
+          </div>
+          <div className="flex-none overflow-scroll vh-100">
+          {/* TODO: Make this a scroll list of all players you can add players from draggy droppy */}
+            {/* tslint:disable-next-line */}
+            <PlayerSmallList playersById={playersById} rank={this.state.rank} onClick={(playerId: any) => this.addPlayer(playerId)}/>
+          </div>
+        </div>
       </>
     );
   }
