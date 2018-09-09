@@ -1,4 +1,3 @@
-import * as R from 'ramda';
 import * as React from 'react';
 import { SortableElement, SortableHandle } from 'react-sortable-hoc';
 
@@ -7,7 +6,7 @@ const DragHandle = SortableHandle(() => <span className="pointer">:::</span>); /
 export const PlayerIndicator: any = SortableElement((props: any) =>
   !props.smallMode ? (
     <div
-      className="ma2 shadow-4 flex justify-center items-center br2"
+      className="shadow-4 flex justify-center items-center br2 ma2"
       style={{height: props.height}}
     >
       <div className="flex-none ma2">{props.rank}</div>
@@ -20,15 +19,6 @@ export const PlayerIndicator: any = SortableElement((props: any) =>
           props.value.currentTeam.abbreviation :
           'NA'
         })
-        {props.value.primaryPosition === 'RB' && (
-          ` ${R.pathOr(0, ['rushing', 'rushAttempts'], props.stats)} / ${R.pathOr(0, ['rushing', 'rushYards'], props.stats)}`
-        )}
-        {R.or(R.equals('WR'), R.equals('TE'))(props.value.primaryPosition) && (
-          ` ${R.pathOr(0, ['receiving', 'receptions'], props.stats)} / ${R.pathOr(0, ['receiving', 'recYards'], props.stats)}`
-        )}
-        {props.value.fantasyPoints !== 0 && (
-          ` ${R.prop('fantasyPoints', props.stats)}`
-        )}
       </div>
       <div className="flex-none ma3"><DragHandle/></div>
       <div className="flex-none ma3 pointer" onClick={props.onRemovePlayer(props.value.id)}>x</div>

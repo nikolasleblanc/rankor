@@ -9,6 +9,8 @@ import './App.css';
 import { PlayerList } from './Components/PlayerList';
 import { STATS } from './constants';
 
+import { default as Select } from 'react-select';
+
 // const MAX_ALLOWABLE_AGE_OF_DATA_IN_HOURS = 0;
 const API_TOKEN = process.env.REACT_APP_TOKEN || '';
 const API_PASSWORD = process.env.REACT_APP_PASSWORD || '';
@@ -114,14 +116,6 @@ const setPlayerStatsArray = (position: string) => R.tap((players: any) => {
 //     });
 //   }
 // });
-
-const PlayerSmallList = (props: { playersById: {}, rank: number[], onClick: (playerId: number) => () => void }) => (
-  <ul>
-    {R.drop(25, props.rank).map((playerId: number, index: number) => (
-      <li key={index} onClick={props.onClick(playerId)}>{props.playersById[playerId].firstName} {props.playersById[playerId].lastName}</li>
-    ))}
-  </ul>
-);
 
 const getPlayersResourceResponse = (TOKEN: string, PASSWORD: string, position: string) =>
   axios.get(`${API_PLAYER_URL}?position=${position}`, {
@@ -396,7 +390,14 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
     }
   }
 
-  public addPlayer = (playerId: number) => () => {
+  // tslint:disable-next-line
+  public handleChange = (e: any) => {
+    // tslint:disable-next-line
+    console.log('hey', e);
+    this.addPlayer(e.value);
+  }
+
+  public addPlayer = (playerId: number) => {
     const newRank = R.insert(24, playerId, this.state.rank.filter((playerId2: number) => playerId2 !== playerId));
     getRankRef(this.state.position, store.get('user').uid).set(newRank);
   }
@@ -492,23 +493,41 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
     // tslint:disable-next-line
     return (
       <>
-        <div className="flex justify-between">
-          <button onClick={this.changePosition('QB')}>QB</button>
-          <button onClick={this.changePosition('RB')}>RB</button>
-          <button onClick={this.changePosition('TE')}>TE</button>
-          <button onClick={this.changePosition('WR')}>WR</button>
-        </div>
-        <div className="flex">
-          <div className="flex-auto overflow-scroll vh-100">
+        <div className="flex flex-column vh-100">
+          <div className="flex-none header">
+            <h1 className="f4 bold ma2">Rankor Monster</h1>
+            <div className="flex justify-between ma2">
+              <div>
+                <button onClick={this.changePosition('QB')} className="bg-transparent ba b--none underline">QB</button>
+                <button onClick={this.changePosition('RB')} className="bg-transparent ba b--none underline">RB</button>
+                <button onClick={this.changePosition('TE')} className="bg-transparent ba b--none underline">TE</button>
+                <button onClick={this.changePosition('WR')} className="bg-transparent ba b--none underline">WR</button>
+              </div>
+              <div>
+                {!this.state.loggedIn ? (
+                  <button onClick={this.doLogin} className="bg-transparent ba b--none underline">Login</button>
+                ) : (
+                  <button onClick={this.doLogout} className="bg-transparent ba b--none underline">Logout</button>
+                )}
+              </div>
+            </div>
+            <div className="ma2">
+              <Select
+                controlShouldRenderValue={false}
+                isSearchable={true}
+                options={R.drop(25, this.state.rank).map((playerId: number) => ({
+                  label: playersById[playerId].firstName + ' ' + playersById[playerId].lastName,
+                  value: playerId,
+                }))}
+                onChange={this.handleChange}
+              />
+            </div>
+          </div>
+          <div className="flex-auto relative">
             {this.state.isLoading ? (
               <p>Loading</p>
             ) : (
-              <>
-                {!this.state.loggedIn ? (
-                  <button onClick={this.doLogin}>Login</button>
-                ) : (
-                  <button onClick={this.doLogout}>Logout</button>
-                )}
+              <div className="absolute bottom-0 top-0 left-0 right-0 overflow-scroll">
                 <PlayerList
                   useDragHandle={true}
                   lockAxis={'y'}
@@ -521,13 +540,8 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
                     this.removePlayer(playerId)();
                   }}
                 />
-              </>
+              </div>
             )}
-          </div>
-          <div className="flex-none overflow-scroll vh-100">
-          {/* TODO: Make this a scroll list of all players you can add players from draggy droppy */}
-            {/* tslint:disable-next-line */}
-            <PlayerSmallList playersById={playersById} rank={this.state.rank} onClick={(playerId: any) => this.addPlayer(playerId)}/>
           </div>
         </div>
       </>
