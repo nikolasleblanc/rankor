@@ -54,8 +54,6 @@ const mapPlayerStatsData = (statSet: any) => R.compose(
   }),
   R.map((player: any) => {
     const position = R.pathOr(FIX_ME, ['player', 'primaryPosition'], player);
-    // tslint:disable-next-line
-    console.log(player, statSet);
     return {
       fantasyPoints: calculateFantasyPoints(statSet, getStatType(position))(R.path(['stats', getStatType(position)], player)),
       id: R.path(['player', 'id'], player),
@@ -206,15 +204,9 @@ const getStatType = (position: PlayerPositions): string => {
   return playerStatTypeMap[position];
 }
 
-const fuckConsole = (msg: any) => {
-  // tslint:disable-next-line
-  console.log(msg)
-}
-
 
 const getStatSet = (playerPosition: 'RB' | 'WR' | 'TE' | 'QB', playerStatType: 'rushing' | 'receiving' | 'passing'): any => {
   const relevantStats = R.intersection<any>(STATS[playerPosition], R.keys(R.prop(playerStatType, POINT_VALUES)));
-  fuckConsole(`relevantStaats ${playerStatType}, ${relevantStats}`);
   return relevantStats;
 }
 
@@ -225,9 +217,6 @@ type PlayerPositions = 'WR' | 'QB' | 'RB' | 'TE';
 
 
 const calculateFantasyPoints = (statSet: any, playerStatType: string) => (playerStats: any): number => {
-  // tslint:disable-next-line
-  console.log('yeah', statSet, playerStats);
-
   const totalPointsByStat: number[] =
     R.map(
       (statType: string) =>
@@ -372,8 +361,6 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
   }
 
   public doLogout() {
-    // tslint:disable-next-line
-    console.log('here');
     store.set('user', undefined);
     store.set('token', undefined);
     this.setState({
@@ -391,10 +378,12 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
   }
 
   // tslint:disable-next-line
-  public handleChange = (e: any) => {
-    // tslint:disable-next-line
-    console.log('hey', e);
+  public handleOnAddPlayer = (e: any) => {
     this.addPlayer(e.value);
+  }
+
+  public handleOnRemovePlayer = (playerId: any) => () => {
+    this.removePlayer(playerId)();
   }
 
   public addPlayer = (playerId: number) => {
@@ -404,8 +393,6 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
 
   public removePlayer = (removedPlayerId: number) => () => {
     const newRank = R.insert(25, removedPlayerId, this.state.rank.filter((playerId: number) => playerId !== removedPlayerId));
-    // tslint:disable-next-line
-    console.log('god damn');
     getRankRef(this.state.position, store.get('user').uid).set(newRank);
   }
 
@@ -520,7 +507,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
                   label: playersById[playerId].firstName + ' ' + playersById[playerId].lastName,
                   value: playerId,
                 }))}
-                onChange={this.handleChange}
+                onChange={this.handleOnAddPlayer}
               />
             </div>
           </div>
@@ -535,11 +522,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
                   players={players}
                   playerStats={playerStatsById}
                   onSortEnd={this.onSortEnd}
-                  onRemovePlayer={(playerId: any) => () => {
-                    // tslint:disable-next-line
-                    console.log('asdasdasdas', playerId);
-                    this.removePlayer(playerId)();
-                  }}
+                  onRemovePlayer={this.handleOnRemovePlayer}
                 />
               </div>
             )}
