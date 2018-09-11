@@ -24,7 +24,12 @@ if (!firebase.apps.length) {
 
 export const provider = new firebase.auth.GoogleAuthProvider();
 
-const getRefPath = (uid: string, path: string = '') => 'ranks/' + uid + '/week' + store.get('week') + path;
+const getRefPath = (uid: string, path: string = '') => {
+  const refPath = 'ranks/' + uid + '/week' + store.get('week') + path;
+  // tslint:disable-next-line
+  console.log('refPath', refPath);
+  return refPath;
+}
 
 const getRankRef = (refPath: string) => firebase.database().ref(refPath);
 
