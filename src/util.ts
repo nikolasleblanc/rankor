@@ -1,4 +1,5 @@
 import { default as axios } from 'axios';
+import { format } from 'date-fns';
 import * as R from 'ramda';
 import * as store from 'store';
 import { API_PASSWORD, API_PLAYER_STATS_URL, API_PLAYER_URL, API_TOKEN, POINT_VALUES, STATS } from './constants';
@@ -125,8 +126,9 @@ export const getPlayerData = (position: string) => () =>
   fetch(`${API_PLAYER_URL}?position=${position}`)
     .then(processPlayerData(position));
 
-export const getPlayerStatsData = (position: string, statSet: any) => () =>
-  fetch(`${API_PLAYER_STATS_URL}?position=${position}`)
+export const getPlayerStatsData = (position: string, statSet: any, date: Date[]) => () =>
+  fetch(`${API_PLAYER_STATS_URL}?position=${position}&date=${date.length &&
+    date.reverse().map(i => format(i, 'YYYYMMDD')).join('-')}`)
     .then(processPlayerStatsData(position, statSet));
 
 export const setupStore = () => {
@@ -154,9 +156,12 @@ export const setupStore = () => {
   if (R.isNil(store.get('token'))) {
     store.set('token', undefined);
   }
+  if (R.isNil(store.get('week'))) {
+    store.set('week', 1);
+  }
 }
 
-export const setupState = (position: PlayerPositions) => (
+export const setupState = (position: PlayerPositions, week: number = 1) => (
   {
     isLoading: true,
     loggedIn: false,
@@ -164,6 +169,7 @@ export const setupState = (position: PlayerPositions) => (
     players: [],
     position,
     rank: [],
+    week,
   }
 );
 

@@ -12,15 +12,23 @@ import { PlayerPositions } from './interface';
 import { default as Select } from 'react-select';
 import { getPlayerData, getPlayerStatsData, getStatSet, getStatType, isDataStale, movePlayerToIndex, setupState, setupStore } from './util';
 
+import { addDays, addWeeks } from 'date-fns';
+
+const SEASON_START_DATE = new Date(2018, 8, 6);
+
+export const getWeekDateRange = (week: number): Date[] => [addWeeks(SEASON_START_DATE, week-1), addDays(addWeeks(SEASON_START_DATE, week-1), 6)];
+
 if (!firebase.apps.length) {
   firebase.initializeApp(FIREBASE_CONFIG);
 }
 
 export const provider = new firebase.auth.GoogleAuthProvider();
 
-const getRankRef = (position: string, uid: string) => firebase.database().ref('ranks/' + position + '/' + uid);
+const getRefPath = (uid: string, path: string = '') => 'ranks/' + uid + '/week' + store.get('week') + path;
 
-class App extends React.Component<any, { loggedIn: boolean, players: any[], playerStats: any[], isLoading: boolean, position: PlayerPositions, rank: any[] }> {
+const getRankRef = (refPath: string) => firebase.database().ref(refPath);
+
+class App extends React.Component<any, { week: number, loggedIn: boolean, players: any[], playerStats: any[], isLoading: boolean, position: PlayerPositions, rank: any[] }> {
   public SortableList: any;
 
   public token: string;
@@ -30,12 +38,13 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
   public email: any;
   public credential: any;
   public rankRef: any;
+  public weeks: any;
 
   constructor(props: any) {
     super(props);
 
     setupStore();
-    this.state = setupState(store.get('position'));
+    this.state = setupState(store.get('position'), store.get('week'));
 
     this.onSortEnd = this.onSortEnd.bind(this);
     this.changePosition = this.changePosition.bind(this);
@@ -43,6 +52,12 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
     this.doLogin = this.doLogin.bind(this);
     this.doLogout = this.doLogout.bind(this);
     this.authenticateUser = this.authenticateUser.bind(this);
+    this.handleOnWeekChange = this.handleOnWeekChange.bind(this);
+    this.weeks = Array.from({length: 16}).map((i, index) => ({
+      label: 'Week ' + (index+1),
+      value: index+1,
+    }));
+    this.clearRanks = this.clearRanks.bind(this);
   }
 
   public authenticateUser() {
@@ -54,7 +69,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
           ...this.state,
           loggedIn: true,
         });
-        this.rankRef = getRankRef(this.state.position, store.get('user').uid);
+        this.rankRef = getRankRef(getRefPath(store.get('user').uid, '/' + this.state.position));
         this.rankRef.once('value').then((snapshot: any) => {
           if (R.not(R.isNil(snapshot.val()))) {
             this.setState({
@@ -87,12 +102,14 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
       });
     }
     if (store.get('user') !== undefined) {
-      this.rankRef = getRankRef(this.state.position, store.get('user').uid);
+      this.rankRef = getRankRef(getRefPath(store.get('user').uid, '/' + this.state.position));
       this.rankRef.once('value').then((snapshot: any) => {
         if (R.not(R.isNil(snapshot.val()))) {
           this.setState({
             ...this.state,
-            rank: snapshot.val() || store.get('sort'),
+            rank: snapshot.val() !== null ?
+              snapshot.val() :
+              store.get('sort'),
           });
         }
       });
@@ -100,7 +117,9 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
         // tslint:disable-next-line
         this.setState({
           ...this.state,
-          rank: snapshot.val() || store.get('sort'),
+          rank: snapshot.val() !== null ?
+            snapshot.val() :
+            store.get('sort'),
         });
       });
     }
@@ -129,33 +148,41 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
 
   // tslint:disable-next-line
   public handleOnAddPlayer = (e: any) => {
-    getRankRef(this.state.position, store.get('user').uid)
+    getRankRef(getRefPath(store.get('user').uid, '/' + this.state.position))
       .set(movePlayerToIndex(e.value, 24, this.state.rank));
   }
 
   public handleOnRemovePlayer = (playerId: any) => () => {
-    getRankRef(this.state.position, store.get('user').uid)
+    getRankRef(getRefPath(store.get('user').uid, '/' + this.state.position))
       .set(movePlayerToIndex(playerId, 25, this.state.rank));
+  }
+
+  public handleOnWeekChange(e: any) {
+    store.set('week', e.value);
+    this.loadPlayersIntoState(this.state.position, true);
   }
 
   public loadPlayersIntoState(position: PlayerPositions, override: boolean = false) {
     const statType: any = getStatType(position);
     const statSet = getStatSet(position, statType);
+    const dateRange = getWeekDateRange(store.get('week'));
     if (API_TOKEN === '' || API_PASSWORD === '') {
       throw new Error('MISSING TOKEN OR PASSWORD');
     }
     this.setState({
       ...this.state,
       isLoading: true,
+      position,
+      week: store.get('week'),
     });
     R.ifElse(
       R.or(isDataStale(position), () => override === true),
       () =>
         Promise.all([
           getPlayerData(position)(),
-          getPlayerStatsData(position, statSet)(),
+          getPlayerStatsData(position, statSet, dateRange)(),
           store.get('user') !== undefined ?
-            getRankRef(position, store.get('user').uid).once('value') :
+            getRankRef(getRefPath(store.get('user').uid, '/' + position)).once('value') :
             Promise.resolve(undefined)
         ])
       ,
@@ -165,20 +192,24 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
     .then((response: any) => {
       const players = response[0];
       const playerStats = response[1];
-      const rank = (response[2] && response[2].val()) || store.get('sort') || this.state.rank;
+      let rank = store.get('sort') || this.state.rank;
+      if (response[2] && response[2].val() !== null) {
+        rank = response[2].val();
+      }
       this.setState({
         ...this.state,
         isLoading: false,
         playerStats,
         players,
-        position,
         rank,
       });
       if (store.get('user') !== undefined) {
-        getRankRef(position, store.get('user').uid).on('value', (snapshot: any) => {
+        getRankRef(getRefPath(store.get('user').uid, '/' + this.state.position)).on('value', (snapshot: any) => {
           this.setState({
             ...this.state,
-            rank: snapshot.val() || rank,
+            rank: snapshot.val() !== null ?
+              snapshot.val() :
+              rank,
           });
         })
       }
@@ -189,7 +220,7 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
     if (oldIndex !== newIndex) {
       const newRank = arrayMove(this.state.rank, oldIndex, newIndex);
       if (this.state.loggedIn) {
-        getRankRef(this.state.position, store.get('user').uid).set(newRank);
+        getRankRef(getRefPath(store.get('user').uid, '/' + this.state.position)).set(newRank);
       }
       this.setState({
         ...this.state,
@@ -199,7 +230,12 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
   };
 
   public isLoggedIn() {
+    // TODO: Move this into utils
     return R.not(R.or(R.isNil(store.get('token')), R.isNil(store.get('user'))));
+  }
+
+  public clearRanks() {
+    getRankRef(getRefPath(store.get('user').uid, '/' + this.state.position)).remove();
   }
 
   public render() {
@@ -223,12 +259,28 @@ class App extends React.Component<any, { loggedIn: boolean, players: any[], play
                 <button onClick={this.changePosition('WR')} className="bg-transparent ba b--none underline">WR</button>
               </div>
               <div>
+                <button onClick={this.clearRanks} className="bg-transparent ba b--none underline">Clear Week {this.state.week} {this.state.position} Ranks</button>
+              </div>
+              <div>
                 {!this.state.loggedIn ? (
                   <button onClick={this.doLogin} className="bg-transparent ba b--none underline">Login</button>
                 ) : (
                   <button onClick={this.doLogout} className="bg-transparent ba b--none underline">Logout</button>
                 )}
               </div>
+            </div>
+            <div className="ma2">
+              <Select
+                placeholder={'Select Week...'}
+                controlShouldRenderValue={true}
+                isSearchable={false}
+                options={this.weeks}
+                onChange={this.handleOnWeekChange}
+                value={{
+                  label: 'Week ' + this.state.week,
+                  week: this.state.week,
+                }}
+              />
             </div>
             <div className="ma2">
               <Select
