@@ -20,20 +20,6 @@ export interface PlayerIndicatorProps {
   onSelectPlayer: () => any;
 }
 
-// smallMode,
-//   height,
-//   rank,
-//   value: {
-//     officialImageSrc,
-//     firstName,
-//     lastName,
-//     currentStream: {
-//       default,
-//       abbreviation
-//     },
-//   },
-//   onRemovePlayer
-
 export const PlayerIndicator: any = SortableElement(
   ({
     smallMode,

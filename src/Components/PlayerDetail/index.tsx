@@ -1,12 +1,13 @@
 import * as React from 'react';
-
-import Button from '@material-ui/core/Button';
-
+import * as ReactMarkdown from 'react-markdown';
 import * as yup from 'yup';
 
-import * as ReactMarkdown from 'react-markdown';
-
+import Button from '@material-ui/core/Button';
 import { useDebounce } from 'use-debounce';
+
+import { PlayerSummary } from './../PlayerSummary';
+import { StatsSummary } from './../StatsSummary';
+import { PlayerDetailProps } from './interface';
 
 import {
   ErrorMessage,
@@ -17,75 +18,6 @@ import {
   FormikProps,
   FormikValues
 } from 'formik';
-
-export interface PlayerDetailProps {
-  player: any;
-  stats: any;
-  onClose: () => void;
-  summary: any;
-}
-
-const PlayerSummary: React.SFC<any> = ({
-  player: {
-    firstName,
-    lastName,
-    primaryPosition,
-    jerseyNumber,
-    officialImageSrc: img,
-    weight,
-    age,
-    currentTeam: { abbreviation: teamAbbreviation },
-    drafted: { year: draftYear, round, overallPick }
-  }
-}) => (
-  <>
-    <p>
-      Name: {firstName} {lastName}
-    </p>
-    <p>Position: {primaryPosition}</p>
-    <p>Jersey Number: {jerseyNumber}</p>
-    <p>Team: {teamAbbreviation}</p>
-    <p>Age: {age}</p>
-    <p>Weight: {weight}</p>
-    {img && (
-      <img
-        className="mh2"
-        width="50"
-        height="50"
-        src={(img || '').replace('http:', 'https:')}
-      />
-    )}
-  </>
-);
-
-const StatsSummary: React.SFC<any> = ({
-  stats: {
-    fantasyPoints,
-    gamesPlayed,
-    passing: { passAttempts, passCompletions, passYards, passAvg, passTD },
-    receiving: { targets, receptions, recYards, recAverage, recTD },
-    rushing: { rushAttempts, rushYards, rushAverage, rushTD }
-  }
-}) => (
-  <>
-    <p>Fantasy Points: {fantasyPoints}</p>
-    <p>Games Played: {gamesPlayed}</p>
-    <p>Pass Attempts: {passAttempts}</p>
-    <p>Pass Completions: {passCompletions}</p>
-    <p>Pass Yards: {passYards}</p>
-    <p>Pass Avg: {passAvg}</p>
-    <p>Pass TD: {passTD}</p>
-    <p>Targets: {targets}</p>
-    <p>Receptions: {receptions}</p>
-    <p>Receiving Yards: {recYards}</p>
-    <p>Receiving Avg: {recAverage}</p>
-    <p>Receiving TD: {recTD}</p>
-    <p>Rush Attempts: {rushAttempts}</p>
-    <p>Rush Yards: {rushYards}</p>
-    <p>Rush Avg: {rushAverage}</p>
-    <p>Rush TD: {rushTD}</p>
-  </>
-);
 
 const schema = yup.object().shape({
   summary: yup.string().required()
