@@ -165,10 +165,12 @@ export const setupState = (position: PlayerPositions, week: number = 1) => (
   {
     isLoading: true,
     loggedIn: false,
+    playerSelected: 0,
     playerStats: [],
     players: [],
     position,
     rank: [],
+    summaries: [],
     week,
   }
 );

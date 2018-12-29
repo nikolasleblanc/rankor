@@ -5,6 +5,7 @@ import * as React from 'react';
 import { arrayMove } from 'react-sortable-hoc';
 import * as store from 'store';
 import './App.css';
+import { PlayerDetail } from './Components/PlayerDetail';
 import { PlayerList } from './Components/PlayerList';
 import { API_PASSWORD, API_TOKEN, FIREBASE_CONFIG } from './constants';
 import { PlayerPositions } from './interface';
@@ -13,6 +14,8 @@ import { default as Select } from 'react-select';
 import { getPlayerData, getPlayerStatsData, getStatSet, getStatType, isDataStale, movePlayerToIndex, setupState, setupStore } from './util';
 
 import { addDays, addWeeks } from 'date-fns';
+
+import Drawer from '@material-ui/core/Drawer';
 
 const SEASON_START_DATE = new Date(2018, 8, 6);
 
@@ -33,7 +36,17 @@ const getRefPath = (uid: string, path: string = '') => {
 
 const getRankRef = (refPath: string) => firebase.database().ref(refPath);
 
-class App extends React.Component<any, { week: number, loggedIn: boolean, players: any[], playerStats: any[], isLoading: boolean, position: PlayerPositions, rank: any[] }> {
+class App extends React.Component<any, { 
+  week: number, 
+  loggedIn: boolean, 
+  players: any[], 
+  playerStats: any[], 
+  isLoading: boolean, 
+  position: PlayerPositions, 
+  rank: any[],
+  playerSelected: number,
+  summaries: any
+}> {
   public SortableList: any;
 
   public token: string;
@@ -162,6 +175,22 @@ class App extends React.Component<any, { week: number, loggedIn: boolean, player
       .set(movePlayerToIndex(playerId, 25, this.state.rank));
   }
 
+  public handleOnSelectPlayer = (playerId: any) => () => {
+    console.log(playerId);
+    this.setState({
+      ...this.state,
+      playerSelected: playerId
+    });
+  }
+
+  public closePlayerPage = () => {
+    console.log('closin');
+    this.setState({
+      ...this.state,
+      playerSelected: 0
+    });
+  }
+
   public handleOnWeekChange(e: any) {
     store.set('week', e.value);
     this.loadPlayersIntoState(this.state.position, true);
@@ -188,7 +217,7 @@ class App extends React.Component<any, { week: number, loggedIn: boolean, player
           getPlayerStatsData(position, statSet, dateRange)(),
           store.get('user') !== undefined ?
             getRankRef(getRefPath(store.get('user').uid, '/' + position)).once('value') :
-            Promise.resolve(undefined)
+            Promise.resolve(undefined),
         ])
       ,
       // TODO: this is no longer relevant until we start caching data again
@@ -252,72 +281,82 @@ class App extends React.Component<any, { week: number, loggedIn: boolean, player
     const players = R.slice(0, 25, rank.map((id: any) => playersById[id]));
 
     return (
-      <>
-        <div className="flex flex-column vh-100">
-          <div className="flex-none header">
-            <h1 className="f4 bold ma2">Rankor Monster</h1>
-            <div className="flex justify-between ma2">
-              <div>
-                <button onClick={this.changePosition('QB')} className="bg-transparent ba b--none underline">QB</button>
-                <button onClick={this.changePosition('RB')} className="bg-transparent ba b--none underline">RB</button>
-                <button onClick={this.changePosition('TE')} className="bg-transparent ba b--none underline">TE</button>
-                <button onClick={this.changePosition('WR')} className="bg-transparent ba b--none underline">WR</button>
-              </div>
-              <div>
-                <button onClick={this.clearRanks} className="bg-transparent ba b--none underline">Clear Week {this.state.week} {this.state.position} Ranks</button>
-              </div>
-              <div>
-                {!this.state.loggedIn ? (
-                  <button onClick={this.doLogin} className="bg-transparent ba b--none underline">Login</button>
-                ) : (
-                  <button onClick={this.doLogout} className="bg-transparent ba b--none underline">Logout</button>
-                )}
-              </div>
+      <div className="flex flex-column vh-100">
+        <Drawer
+          anchor="left"
+          open={this.state.playerSelected !== 0}
+          onClose={this.closePlayerPage}
+        >
+          <PlayerDetail 
+            player={playersById[this.state.playerSelected] || {}} stats={playerStatsById[this.state.playerSelected]} 
+            onClose={this.closePlayerPage}
+            summary={this.state.summaries[this.state.playerSelected]}
+          />
+        </Drawer>
+        <div className="flex-none header">
+          <h1 className="f4 bold ma2">Rankor Monster</h1>
+          <div className="flex justify-between ma2">
+            <div>
+              <button onClick={this.changePosition('QB')} className="bg-transparent ba b--none underline">QB</button>
+              <button onClick={this.changePosition('RB')} className="bg-transparent ba b--none underline">RB</button>
+              <button onClick={this.changePosition('TE')} className="bg-transparent ba b--none underline">TE</button>
+              <button onClick={this.changePosition('WR')} className="bg-transparent ba b--none underline">WR</button>
             </div>
-            <div className="ma2">
-              <Select
-                placeholder={'Select Week...'}
-                controlShouldRenderValue={true}
-                isSearchable={false}
-                options={this.weeks}
-                onChange={this.handleOnWeekChange}
-                value={{
-                  label: 'Week ' + this.state.week,
-                  week: this.state.week,
-                }}
-              />
+            <div>
+              <button onClick={this.clearRanks} className="bg-transparent ba b--none underline">Clear Week {this.state.week} {this.state.position} Ranks</button>
             </div>
-            <div className="ma2">
-              <Select
-                placeholder={'Add Player to top 25...'}
-                controlShouldRenderValue={false}
-                isSearchable={true}
-                options={R.drop(25, this.state.rank).map((playerId: number) => ({
-                  label: R.path([playerId, 'firstName'], playersById) + ' ' + R.path([playerId, 'lastName'], playersById),
-                  value: playerId,
-                }))}
-                onChange={this.handleOnAddPlayer}
-              />
+            <div>
+              {!this.state.loggedIn ? (
+                <button onClick={this.doLogin} className="bg-transparent ba b--none underline">Login</button>
+              ) : (
+                <button onClick={this.doLogout} className="bg-transparent ba b--none underline">Logout</button>
+              )}
             </div>
           </div>
-          <div className="flex-auto relative">
-            {this.state.isLoading ? (
-              <p>Loading</p>
-            ) : (
-              <div className="absolute bottom-0 top-0 left-0 right-0 overflow-scroll">
-                <PlayerList
-                  useDragHandle={true}
-                  lockAxis={'y'}
-                  players={players}
-                  playerStats={playerStatsById}
-                  onSortEnd={this.onSortEnd}
-                  onRemovePlayer={this.handleOnRemovePlayer}
-                />
-              </div>
-            )}
+          <div className="ma2">
+            <Select
+              placeholder={'Select Week...'}
+              controlShouldRenderValue={true}
+              isSearchable={false}
+              options={this.weeks}
+              onChange={this.handleOnWeekChange}
+              value={{
+                label: 'Week ' + this.state.week,
+                week: this.state.week,
+              }}
+            />
+          </div>
+          <div className="ma2">
+            <Select
+              placeholder={'Add Player to top 25...'}
+              controlShouldRenderValue={false}
+              isSearchable={true}
+              options={R.drop(25, this.state.rank).map((playerId: number) => ({
+                label: R.path([playerId, 'firstName'], playersById) + ' ' + R.path([playerId, 'lastName'], playersById),
+                value: playerId,
+              }))}
+              onChange={this.handleOnAddPlayer}
+            />
           </div>
         </div>
-      </>
+        <div className="flex-auto relative">
+          {this.state.isLoading ? (
+            <p>Loading</p>
+          ) : (
+            <div className="absolute bottom-0 top-0 left-0 right-0 overflow-scroll">
+              <PlayerList
+                useDragHandle={true}
+                lockAxis={'y'}
+                players={players}
+                playerStats={playerStatsById}
+                onSortEnd={this.onSortEnd}
+                onRemovePlayer={this.handleOnRemovePlayer}
+                onSelectPlayer={this.handleOnSelectPlayer}
+              />
+            </div>
+          )}
+        </div>
+      </div>
     );
   }
 }

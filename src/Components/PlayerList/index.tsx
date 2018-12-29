@@ -15,7 +15,8 @@ export const PlayerList: React.ComponentClass<any, any> = SortableContainer((pro
           rank={index+1}
           height={PLAYER_CELL_HEIGHT}
           stats={props.playerStats[player.id]}
-          onRemovePlayer={props.onRemovePlayer}
+          onRemovePlayer={props.onRemovePlayer(player.id)}
+          onSelectPlayer={props.onSelectPlayer(player.id)}
         />
       )})}
   </div>
