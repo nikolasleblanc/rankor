@@ -1,55 +1,55 @@
-import { RelevantStats } from "./interface";
+import { RelevantStats } from './interface';
 
 export const PASSING_STATS = [
-  "pass20Plus",
-  "pass40Plus",
-  "passAttempts",
-  "passAvg",
-  "passCompletions",
-  "passInt",
-  "passIntPct",
-  "passLng",
-  "passPct",
-  "passSacks",
-  "passSackY",
-  "passTD",
-  "passTDPct",
-  "passYards",
-  "passYardsPerAtt",
-  "qbRating",
+  'pass20Plus',
+  'pass40Plus',
+  'passAttempts',
+  'passAvg',
+  'passCompletions',
+  'passInt',
+  'passIntPct',
+  'passLng',
+  'passPct',
+  'passSacks',
+  'passSackY',
+  'passTD',
+  'passTDPct',
+  'passYards',
+  'passYardsPerAtt',
+  'qbRating'
 ];
 
 export const RUSHING_STATS = [
-  "rushAttempts",
-  "rushYards",
-  "rushAverage",
-  "rushTD",
-  "rushLng",
-  "rush1stDowns",
-  "rush1stDownsPct",
-  "rush20Plus",
-  "rush40Plus",
-  "rushFumbles",
+  'rushAttempts',
+  'rushYards',
+  'rushAverage',
+  'rushTD',
+  'rushLng',
+  'rush1stDowns',
+  'rush1stDownsPct',
+  'rush20Plus',
+  'rush40Plus',
+  'rushFumbles'
 ];
 
 export const RECEIVING_STATS = [
-  "targets",
-  "receptions",
-  "recYards",
-  "recAverage",
-  "recTD",
-  "recLng",
-  "rec1stDowns",
-  "rec20Plus",
-  "rec40Plus",
-  "recFumbles",
+  'targets',
+  'receptions',
+  'recYards',
+  'recAverage',
+  'recTD',
+  'recLng',
+  'rec1stDowns',
+  'rec20Plus',
+  'rec40Plus',
+  'recFumbles'
 ];
 
 export const STATS = {
-  'QB': PASSING_STATS,
-  'RB': RUSHING_STATS,
-  'TE': RECEIVING_STATS,
-  'WR': RECEIVING_STATS,
+  QB: PASSING_STATS,
+  RB: RUSHING_STATS,
+  TE: RECEIVING_STATS,
+  WR: RECEIVING_STATS
 };
 
 // const MAX_ALLOWABLE_AGE_OF_DATA_IN_HOURS = 0;
@@ -66,25 +66,25 @@ export const FIREBASE_CONFIG = {
   databaseURL: process.env.REACT_APP_DATABASE_URL,
   messagingSenderId: process.env.REACT_APP_MESSAGING_SENDER_ID,
   projectId: process.env.REACT_APP_PROJECT_ID,
-  storageBucket: process.env.REACT_APP_STORAGE_BUCKET,
+  storageBucket: process.env.REACT_APP_STORAGE_BUCKET
 };
 
 export const POINT_VALUES: RelevantStats = {
-  'passing': {
-    'passInt': -2,
-    'passSacks': -2,
-    'passTD': 6,
-    'passYards': 0.04,
+  passing: {
+    passInt: -2,
+    passSacks: -2,
+    passTD: 6,
+    passYards: 0.04
   },
-  'receiving': {
-    'recFumbles': -2,
-    'recTD': 6,
-    'recYards': .1,
-    'receptions': 0,
+  receiving: {
+    recFumbles: -2,
+    recTD: 6,
+    recYards: 0.1,
+    receptions: 0
   },
-  'rushing': {
-    'rushFumbles': -2,
-    'rushTD': 6,
-    'rushYards': .1,
-  },
+  rushing: {
+    rushFumbles: -2,
+    rushTD: 6,
+    rushYards: 0.1
+  }
 };

@@ -19,10 +19,10 @@ export interface RelevantReceivingStats {
 }
 
 export interface RelevantStats {
-  'passing': RelevantPassingStats;
-  'receiving': RelevantReceivingStats;
-  'rushing': RelevantRushingStats;
-};
+  passing: RelevantPassingStats;
+  receiving: RelevantReceivingStats;
+  rushing: RelevantRushingStats;
+}
 
 export type PlayerPositions = 'WR' | 'QB' | 'RB' | 'TE';
 export type StatType = 'passing' | 'rushing' | 'receiving';
